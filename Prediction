@@ -1,0 +1,139 @@
+%% Initialize function type 
+function_type = 2;
+switch function_type 
+    case 1;         % sinusoidal with polynomial
+        f = @(x) 0.006*x.^3+0.6*sqrt(x)+2*(x.^-1).*sin(2.66*x)+exp(-0.3*x+1);
+        function_string = 'f(x) = 0.006*x^3+0.6*sqrt(x)+2*(x^-1)*sin(2.66x)+exp(-0.3x+1)';
+    case 2;
+        f = @(x) 1.5*sin(0.83*x);
+        function_string = 'f(x) = 1.5sin(0.83x)';        
+end    
+
+
+
+%% Initialize train points
+%x_train = [-0.14; 0.22; 0.98; 1.42; 2.00; 2.16; 2.68; 3.28; 3.32; 3.74; 4.53];
+%y_train = [ 0.01; 0.09;-0.12; 1.14; 2.18; 0.94; 0.18; 0.05; 0.22; 0.05; 0.93];
+n = 20;
+x_train = linspace(0, 10, n);
+y_train = f(x_train);
+
+
+% plot true function
+x = linspace(x_train(1), x_train(end));
+plot(x, f(x), 'Linestyle', '-', 'Color', [1 0.8 0.8], 'LineWidth', 0.1); hold on;
+
+plot(x_train, y_train, 'Linestyle', '--', 'Color', [0.9 0.9 0], 'LineWidth', 1); hold on; %'MarkerSize', 60,
+ 
+scatter(x_train, y_train);
+alpha = 0.05;
+beta = 0.05;
+denom = 1 - alpha - beta;
+
+xlim([x_train(1) x_train(end)]);
+ylim([-beta*max(y_train)/denom+(1-alpha)*min(y_train)/denom (1-beta)*max(y_train)/denom-alpha*min(y_train)/denom]);
+
+
+
+%% Consider m points to form a gaussian distribution
+m = 3;
+slopes = zeros(m, 1);
+
+right_upper_slopes = zeros((n-m-1), 1);
+right_lower_slopes = zeros((n-m-1), 1);
+left_upper_slopes = zeros((n-m-1), 1);
+left_lower_slopes = zeros((n-m-1), 1);
+
+right_slopes_mu = zeros((n-m-1), 1);
+right_slopes_sigma = zeros((n-m-1), 1);
+left_slopes_mu = zeros((n-m-1), 1);
+left_slopes_sigma = zeros((n-m-1), 1);
+
+
+for j = (m+1):(n-1)-m
+    
+    % calculate sample slopes
+    right_sample_slopes = zeros(m, 1);
+    left_sample_slopes = zeros(m, 1);
+    
+    for i = 1:m
+        right_sample_slopes(i) = (y_train(i+j)-y_train(j))/(x_train(i+j)-x_train(j));
+        left_sample_slopes(i) = (y_train(j-i)-y_train(j))/(x_train(j-i)-x_train(j));
+    end
+
+    
+    % calculate slope mean and standard deviation, and get slope upper and lower bound
+    right_slope_mu = mean(right_sample_slopes); %mean(right_sample_slopes);
+    left_slope_mu  = mean(left_sample_slopes);  %mean(left_sample_slopes);
+    right_slope_sigma = sqrt(mean(right_sample_slopes.^2) - right_slope_mu^2); %% use var for N-1 ??
+    left_slope_sigma  = sqrt(mean(left_sample_slopes.^2)  - left_slope_mu^2); %% use var for N-1 ??
+    
+    right_lower_bound_slope = right_sample_slopes(1) - 2*right_slope_sigma; %% min, max ?? or mean (right_slope_mu)?? or weighted-average?? 
+    right_upper_bound_slope = right_sample_slopes(1) + 2*right_slope_sigma;
+    left_upper_bound_slope  = left_sample_slopes(1)  - 2*left_slope_sigma; %% remember opposite for the slope for left
+    left_lower_bound_slope  = left_sample_slopes(1)  + 2*left_slope_sigma;
+    
+    
+    % get y upper and lower bound at x
+    y_right_lower = @(x) right_lower_bound_slope*(x-x_train(j))+y_train(j);
+    y_right_upper = @(x) right_upper_bound_slope*(x-x_train(j))+y_train(j);
+    x_right = x_train(j):0.1:x_train(j+1);
+    
+    y_left_lower = @(x) left_lower_bound_slope*(x-x_train(j))+y_train(j);
+    y_left_upper = @(x) left_upper_bound_slope*(x-x_train(j))+y_train(j);
+    x_left = x_train(j):-0.1:x_train(j-1);
+
+    
+    % save slopes data and its mean, standard deviation
+    right_upper_slopes(j) = right_upper_bound_slope;
+    right_lower_slopes(j) = right_lower_bound_slope;
+    left_upper_slopes(j)  = left_upper_bound_slope;
+    left_lower_slopes(j)  = left_lower_bound_slope;
+  
+    right_slopes_mu(j) = right_slope_mu;
+    left_slopes_mu(j)  = left_slope_mu;
+    right_slopes_sigma(j) = right_slope_sigma;
+    left_slopes_sigma(j)  = left_slope_sigma;
+
+    
+    % plot slopes line 
+    plot(x_right, y_right_lower(x_right), 'Color', [1 0.9 0.9], 'LineStyle', '--');
+    plot(x_right, y_right_upper(x_right), 'Color', [0.9 0.9 1], 'LineStyle', '--'); 
+    plot(x_left,  y_left_lower(x_left),   'Color', [1 0.9 0.9], 'LineStyle', '--');
+    plot(x_left,  y_left_upper(x_left),   'Color', [0.9 0.9 1], 'LineStyle', '--');
+end
+
+
+
+%% upper and lower are different methods to plot with function, draw the area enclosed by straight slope line 
+for j = (m+1):(n-2)-m
+    
+    x = linspace(x_train(j), x_train(j+1), 100)'; % ' ??
+    y_upper = min(right_upper_slopes(j)*x+(y_train(j)-right_upper_slopes(j)*x_train(j)), left_upper_slopes(j+1)*x+(y_train(j+1)-left_upper_slopes(j+1)*x_train(j+1))); %left_lower_slopes->left_upper_slopes
+    y_lower = max(right_lower_slopes(j)*x+(y_train(j)-right_lower_slopes(j)*x_train(j)), left_lower_slopes(j+1)*x+(y_train(j+1)-left_lower_slopes(j+1)*x_train(j+1)));    
+
+    fill([x x], [y_lower y_upper], [0.8 0.8 1], 'LineStyle', 'none', 'FaceAlpha', '0.8');
+end
+
+
+
+%% get y-coordinate mean, sigma from slope's mean, sigma ??
+for i = (m+1):(n-2)-m
+    
+    x = linspace(x_train(i), x_train(i+1), 100)';
+
+    
+    % get y_left and y_right and their total mean and standard deviation
+    y_right_mu = y_train(i)+(x-x_train(i)).*right_slopes_mu(i);
+    y_left_mu  = y_train(i+1)+(x-x_train(i+1)).*left_slopes_mu(i+1);
+    y_right_sigma = (x-x_train(i)).*right_slopes_sigma(i);
+    y_left_sigma  = (x-x_train(i+1)).*left_slopes_sigma(i+1);
+
+    y_mu = (y_left_mu.*(y_right_sigma.^2) + y_right_mu.*(y_left_sigma.^2))./(y_left_sigma.^2 + y_right_sigma.^2); % remember ./ not /
+    y_sigma = sqrt(((y_left_sigma.^2).*(y_right_sigma.^2))./(y_left_sigma.^2+y_right_sigma.^2));
+
+
+    % plot y upper and lower bound
+    scatter(x, y_mu+2*y_sigma, 1, 'b');
+    scatter(x, y_mu-2*y_sigma, 1, 'r');
+end
